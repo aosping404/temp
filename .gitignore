@@ -33,3 +33,8 @@ ui_*.h
 # OS
 .DS_Store
 Thumbs.db
+
+# Environment files with secrets
+setup_env.sh
+*.env
+.env.*
