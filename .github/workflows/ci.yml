@@ -159,7 +159,7 @@ jobs:
             chmod +x "$app_path/Contents/MacOS/temp"
             
             # 创建 Info.plist
-            cat > "$app_path/Contents/Info.plist" << EOF
+            cat > "$app_path/Contents/Info.plist" << 'PLISTEOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -176,7 +176,7 @@ jobs:
   <string>1.0</string>
 </dict>
 </plist>
-EOF
+PLISTEOF
             
             # 使用 macdeployqt 打包依赖
             macdeployqt "$app_path" -always-overwrite
@@ -191,7 +191,7 @@ EOF
           chmod +x "package/运行程序.sh"
           
           # 创建 README
-          cat > "package/README.txt" << EOF
+          cat > "package/README.txt" << 'READMEEOF'
 # temp - macOS 版本
 
 ## 使用方法
@@ -208,7 +208,7 @@ EOF
 
 - 首次运行可能需要右键点击并选择"打开"（如果 macOS 阻止运行）
 - 如果遇到问题，请确保所有文件都在同一目录下
-EOF
+READMEEOF
           
           echo "Package created in: package/"
         else
@@ -314,7 +314,7 @@ SCRIPTEOF
           fi
           
           # 创建 README
-          cat > "$package_dir/README.txt" << EOF
+          cat > "$package_dir/README.txt" << 'READMEEOF'
 # temp - Linux 版本
 
 ## 使用方法
@@ -332,7 +332,7 @@ SCRIPTEOF
 - 如果遇到权限问题，运行: chmod +x 运行程序.sh
 - 如果遇到库加载问题，请确保所有文件都在同一目录下
 - 某些发行版可能需要安装额外的系统库（如 libxcb, libxkbcommon 等）
-EOF
+READMEEOF
           
           echo "Package created in: $package_dir/"
         else
