@@ -79,12 +79,39 @@ jobs:
       shell: bash
       run: |
         if [ "${{ matrix.host }}" == "windows" ]; then
-          if [ -f "build/Release/temp.exe" ]; then
-            echo "exe_path=build/Release/temp.exe" >> $GITHUB_OUTPUT
-            echo "exe_dir=build/Release" >> $GITHUB_OUTPUT
-          elif [ -f "build/bin/temp.exe" ]; then
-            echo "exe_path=build/bin/temp.exe" >> $GITHUB_OUTPUT
-            echo "exe_dir=build/bin" >> $GITHUB_OUTPUT
+          echo "Searching for Windows executable..."
+          echo "Build directory contents:"
+          ls -la build/ 2>/dev/null || echo "build/ not found"
+          ls -la build/Release/ 2>/dev/null || echo "build/Release/ not found"
+          ls -la build/bin/ 2>/dev/null || echo "build/bin/ not found"
+          
+          # 使用 find 搜索所有可能的 temp.exe
+          found_exe=""
+          if command -v find &> /dev/null; then
+            found_exe=$(find build -name "temp.exe" -type f 2>/dev/null | head -1)
+          fi
+          
+          if [ -n "$found_exe" ]; then
+            echo "Found executable via find: $found_exe"
+            echo "exe_path=$found_exe" >> $GITHUB_OUTPUT
+            echo "exe_dir=$(dirname $found_exe)" >> $GITHUB_OUTPUT
+          else
+            echo "Checking common locations..."
+            if [ -f "build/Release/temp.exe" ]; then
+              echo "Found at: build/Release/temp.exe"
+              echo "exe_path=build/Release/temp.exe" >> $GITHUB_OUTPUT
+              echo "exe_dir=build/Release" >> $GITHUB_OUTPUT
+            elif [ -f "build/bin/Release/temp.exe" ]; then
+              echo "Found at: build/bin/Release/temp.exe"
+              echo "exe_path=build/bin/Release/temp.exe" >> $GITHUB_OUTPUT
+              echo "exe_dir=build/bin/Release" >> $GITHUB_OUTPUT
+            elif [ -f "build/bin/temp.exe" ]; then
+              echo "Found at: build/bin/temp.exe"
+              echo "exe_path=build/bin/temp.exe" >> $GITHUB_OUTPUT
+              echo "exe_dir=build/bin" >> $GITHUB_OUTPUT
+            else
+              echo "ERROR: Executable not found in any expected location"
+            fi
           fi
         elif [ "${{ matrix.host }}" == "mac" ]; then
           if [ -d "build/bin/temp.app" ]; then
@@ -105,8 +132,36 @@ jobs:
       if: matrix.host == 'windows'
       shell: pwsh
       run: |
-        $exePath = "${{ steps.find_exe.outputs.exe_path }}"
-        $exeDir = "${{ steps.find_exe.outputs.exe_dir }}"
+        Write-Host "Debug: Searching for executable..."
+        Write-Host "exe_path output: ${{ steps.find_exe.outputs.exe_path }}"
+        Write-Host "exe_dir output: ${{ steps.find_exe.outputs.exe_dir }}"
+        
+        # 尝试多个可能的位置
+        $possiblePaths = @(
+          "build\Release\temp.exe",
+          "build\bin\Release\temp.exe",
+          "build\bin\temp.exe",
+          "build\temp.exe"
+        )
+        
+        $exePath = ""
+        $exeDir = ""
+        
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            $exePath = $path
+            $exeDir = Split-Path -Parent $path
+            Write-Host "Found executable at: $exePath"
+            break
+          }
+        }
+        
+        # 如果还没找到，使用步骤输出
+        if (-not $exePath) {
+          $exePath = "${{ steps.find_exe.outputs.exe_path }}"
+          $exeDir = "${{ steps.find_exe.outputs.exe_dir }}"
+        }
+        
         if ($exePath -and (Test-Path $exePath)) {
           windeployqt --release --compiler-runtime $exePath
           $packageDir = "package"
