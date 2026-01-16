@@ -8,9 +8,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets)
 
-# Qt 6 需要 LinguistTools 用于国际化
+# Qt 6 需要 LinguistTools 用于国际化（可选）
 if(QT_VERSION_MAJOR EQUAL 6)
-    find_package(Qt6 REQUIRED COMPONENTS LinguistTools)
+    find_package(Qt6 QUIET COMPONENTS LinguistTools)
+    if(NOT Qt6LinguistTools_FOUND)
+        message(WARNING "Qt6 LinguistTools not found. Translation files will not be processed.")
+    endif()
 endif()
 
 # 设置自动处理 MOC、UIC、RCC
@@ -64,8 +67,10 @@ if(QT_VERSION_MAJOR EQUAL 6)
         ${RESOURCES}
     )
     
-    # Qt 6 国际化支持
-    qt_add_translations(${PROJECT_NAME} TS_FILES ${TS_FILES})
+    # Qt 6 国际化支持（如果 LinguistTools 可用）
+    if(Qt6LinguistTools_FOUND)
+        qt_add_translations(${PROJECT_NAME} TS_FILES ${TS_FILES})
+    endif()
     
     # 最终化可执行文件（Qt 6）
     # 注意：qt_add_translations 会自动触发最终化，如果出现重复调用警告，请注释掉下面这行

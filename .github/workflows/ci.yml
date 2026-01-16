@@ -12,14 +12,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-        - windows-latest
-        - macos-latest
-        - ubuntu-latest
-        host:
-        - windows
-        - mac
-        - linux
+        include:
+        - os: windows-latest
+          host: windows
+          arch: win64_msvc2022_64
+        - os: macos-latest
+          host: mac
+          arch: clang_64
+        - os: ubuntu-latest
+          host: linux
+          arch: gcc_64
 
     steps:
     - name: Checkout code
@@ -36,7 +38,7 @@ jobs:
         version: '6.8.3'
         host: ${{ matrix.host }}
         target: desktop
-        modules: 'qtbase qttools qtsvg qtdeclarative'
+        arch: ${{ matrix.arch }}
         cache: true
 
     - name: Setup CMake
