@@ -2,6 +2,8 @@ name: CI / Build / Package
 
 on:
   push:
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main, master ]
 
@@ -288,3 +290,51 @@ jobs:
           package/**
         if-no-files-found: warn
         retention-days: 30
+
+  release:
+    name: Create Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    
+    - name: Extract version from tag
+      id: tag_version
+      run: |
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+        VERSION=${TAG_NAME#v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.tag_version.outputs.tag_name }}
+        name: Release ${{ steps.tag_version.outputs.version }}
+        body: |
+          ## Release ${{ steps.tag_version.outputs.version }}
+          
+          ### 下载
+          
+          - **Windows**: 下载 `temp-windows-latest-*.zip`，解压后运行 `运行程序.bat` 或直接运行 `temp.exe`
+          - **macOS**: 下载 `temp-macos-latest-*.zip`，解压后运行 `运行程序.sh` 或双击 `temp.app`
+          - **Linux**: 下载 `temp-ubuntu-latest-*.zip`，解压后运行 `./运行程序.sh` 或直接运行 `./temp`
+          
+          ### 系统要求
+          
+          - Windows: Windows 10 或更高版本
+          - macOS: macOS 10.13 或更高版本
+          - Linux: Ubuntu 20.04+ / Debian 11+ / Fedora 34+ 等
+          
+          **注意**: 所有依赖已包含在包中，无需安装 Qt 或其他依赖。
+        files: |
+          artifacts/**/*
+        draft: false
+        prerelease: false
