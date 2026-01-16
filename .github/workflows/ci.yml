@@ -68,18 +68,304 @@ jobs:
 
     - name: Configure CMake
       run: |
-        cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
     - name: Build
       run: |
-        cmake --build build --config Debug
+        cmake --build build --config Release
 
-    - name: Upload build artifacts
+    - name: Find Executable
+      id: find_exe
+      shell: bash
+      run: |
+        # 查找可执行文件位置
+        if [ "${{ matrix.host }}" == "windows" ]; then
+          if [ -f "build/Release/temp.exe" ]; then
+            echo "exe_path=build/Release/temp.exe" >> $GITHUB_OUTPUT
+            echo "exe_dir=build/Release" >> $GITHUB_OUTPUT
+          elif [ -f "build/bin/temp.exe" ]; then
+            echo "exe_path=build/bin/temp.exe" >> $GITHUB_OUTPUT
+            echo "exe_dir=build/bin" >> $GITHUB_OUTPUT
+          fi
+        elif [ "${{ matrix.host }}" == "mac" ]; then
+          if [ -d "build/bin/temp.app" ]; then
+            echo "exe_path=build/bin/temp.app" >> $GITHUB_OUTPUT
+            echo "exe_dir=build/bin" >> $GITHUB_OUTPUT
+          elif [ -f "build/bin/temp" ]; then
+            echo "exe_path=build/bin/temp" >> $GITHUB_OUTPUT
+            echo "exe_dir=build/bin" >> $GITHUB_OUTPUT
+          fi
+        else
+          if [ -f "build/bin/temp" ]; then
+            echo "exe_path=build/bin/temp" >> $GITHUB_OUTPUT
+            echo "exe_dir=build/bin" >> $GITHUB_OUTPUT
+          fi
+        fi
+
+    - name: Package (Windows)
+      if: matrix.host == 'windows'
+      shell: pwsh
+      run: |
+        $exePath = "${{ steps.find_exe.outputs.exe_path }}"
+        $exeDir = "${{ steps.find_exe.outputs.exe_dir }}"
+        if ($exePath -and (Test-Path $exePath)) {
+          Write-Host "Deploying Qt dependencies for: $exePath"
+          # 使用 windeployqt 打包所有 Qt 依赖
+          windeployqt --release --compiler-runtime $exePath
+          
+          # 创建启动脚本
+          $packageDir = "package"
+          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+          Copy-Item -Path $exeDir\* -Destination $packageDir -Recurse -Force
+          
+          # 创建启动脚本
+          $runScript = @"
+@echo off
+cd /d "%~dp0"
+start "" "temp.exe"
+"@
+          $runScript | Out-File -FilePath "$packageDir\运行程序.bat" -Encoding utf8
+          
+          # 创建 README
+          $readme = @"
+# temp - Windows 版本
+
+## 使用方法
+
+1. 解压此文件夹到任意位置
+2. 双击"运行程序.bat"或直接运行"temp.exe"
+
+## 系统要求
+
+- Windows 10 或更高版本
+- 无需安装 Qt 或其他依赖，所有文件已包含
+
+## 注意事项
+
+- 首次运行可能需要几秒钟加载
+- 如果遇到问题，请确保所有文件都在同一目录下
+"@
+          $readme | Out-File -FilePath "$packageDir\README.txt" -Encoding utf8
+          
+          Write-Host "Package created in: $packageDir"
+        } else {
+          Write-Host "Error: Executable not found"
+          exit 1
+        }
+
+    - name: Package (macOS)
+      if: matrix.host == 'mac'
+      shell: bash
+      run: |
+        exe_path="${{ steps.find_exe.outputs.exe_path }}"
+        exe_dir="${{ steps.find_exe.outputs.exe_dir }}"
+        if [ -n "$exe_path" ] && [ -e "$exe_path" ]; then
+          echo "Deploying Qt dependencies for: $exe_path"
+          
+          # 如果是 .app bundle，使用 macdeployqt
+          if [[ "$exe_path" == *.app ]]; then
+            macdeployqt "$exe_path" -always-overwrite
+            package_dir="package"
+            mkdir -p "$package_dir"
+            cp -R "$exe_path" "$package_dir/"
+          else
+            # 如果是普通可执行文件，创建 .app bundle
+            app_name="temp.app"
+            app_path="package/$app_name"
+            mkdir -p "$app_path/Contents/MacOS"
+            mkdir -p "$app_path/Contents/Frameworks"
+            mkdir -p "$app_path/Contents/Resources"
+            
+            cp "$exe_path" "$app_path/Contents/MacOS/temp"
+            chmod +x "$app_path/Contents/MacOS/temp"
+            
+            # 创建 Info.plist
+            cat > "$app_path/Contents/Info.plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>
+  <string>temp</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.example.temp</string>
+  <key>CFBundleName</key>
+  <string>temp</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleVersion</key>
+  <string>1.0</string>
+</dict>
+</plist>
+EOF
+            
+            # 使用 macdeployqt 打包依赖
+            macdeployqt "$app_path" -always-overwrite
+          fi
+          
+          # 创建启动脚本
+          cat > "package/运行程序.sh" << 'EOF'
+#!/bin/bash
+cd "$(dirname "$0")"
+open "temp.app"
+EOF
+          chmod +x "package/运行程序.sh"
+          
+          # 创建 README
+          cat > "package/README.txt" << EOF
+# temp - macOS 版本
+
+## 使用方法
+
+1. 解压此文件夹到任意位置
+2. 双击"temp.app"或运行"运行程序.sh"
+
+## 系统要求
+
+- macOS 10.13 或更高版本
+- 无需安装 Qt 或其他依赖，所有文件已包含
+
+## 注意事项
+
+- 首次运行可能需要右键点击并选择"打开"（如果 macOS 阻止运行）
+- 如果遇到问题，请确保所有文件都在同一目录下
+EOF
+          
+          echo "Package created in: package/"
+        else
+          echo "Error: Executable not found"
+          exit 1
+        fi
+
+    - name: Install Linux Deployment Tools
+      if: matrix.host == 'linux'
+      run: |
+        # 安装 patchelf（用于修改二进制文件的 rpath）
+        sudo apt-get update
+        sudo apt-get install -y patchelf
+
+    - name: Package (Linux)
+      if: matrix.host == 'linux'
+      shell: bash
+      run: |
+        exe_path="${{ steps.find_exe.outputs.exe_path }}"
+        exe_dir="${{ steps.find_exe.outputs.exe_dir }}"
+        if [ -n "$exe_path" ] && [ -e "$exe_path" ]; then
+          echo "Packaging Linux application: $exe_path"
+          
+          package_dir="package"
+          mkdir -p "$package_dir"
+          
+          # 复制可执行文件
+          cp "$exe_path" "$package_dir/temp"
+          chmod +x "$package_dir/temp"
+          
+          # 查找 Qt 安装路径
+          qt_prefix="${{ env.Qt6_DIR }}"
+          if [ -z "$qt_prefix" ] || [ ! -d "$qt_prefix" ]; then
+            # 尝试从 qmake 获取路径
+            if command -v qmake6 &> /dev/null; then
+              qt_prefix=$(qmake6 -query QT_INSTALL_PREFIX)
+            elif command -v qmake &> /dev/null; then
+              qt_prefix=$(qmake -query QT_INSTALL_PREFIX)
+            fi
+          fi
+          
+          if [ -n "$qt_prefix" ] && [ -d "$qt_prefix" ]; then
+            echo "Qt prefix found: $qt_prefix"
+            
+            lib_dir="$package_dir/lib"
+            plugins_dir="$package_dir/plugins"
+            mkdir -p "$lib_dir" "$plugins_dir"
+            
+            # 使用 ldd 查找所有依赖的 Qt 库
+            echo "Copying Qt libraries..."
+            ldd "$package_dir/temp" | grep -i qt | while read line; do
+              lib_file=$(echo "$line" | awk '{print $3}')
+              if [ -n "$lib_file" ] && [ -f "$lib_file" ]; then
+                cp "$lib_file" "$lib_dir/"
+                # 复制符号链接指向的实际文件
+                if [ -L "$lib_file" ]; then
+                  real_file=$(readlink -f "$lib_file")
+                  if [ -f "$real_file" ]; then
+                    cp "$real_file" "$lib_dir/"
+                  fi
+                fi
+              fi
+            done
+            
+            # 复制 Qt 插件（platforms 等）
+            qt_plugins="$qt_prefix/plugins"
+            if [ -d "$qt_plugins/platforms" ]; then
+              cp -r "$qt_plugins/platforms" "$plugins_dir/"
+            fi
+            
+            # 复制其他可能需要的插件
+            for plugin_dir in imageformats iconengines platformthemes; do
+              if [ -d "$qt_plugins/$plugin_dir" ]; then
+                cp -r "$qt_plugins/$plugin_dir" "$plugins_dir/" 2>/dev/null || true
+              fi
+            done
+            
+            # 修改可执行文件的 rpath，使其从本地 lib 目录加载库
+            if command -v patchelf &> /dev/null; then
+              patchelf --set-rpath '$ORIGIN/lib' "$package_dir/temp" 2>/dev/null || true
+            fi
+            
+            # 设置 Qt 插件路径环境变量
+            cat > "$package_dir/运行程序.sh" << 'SCRIPTEOF'
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+export LD_LIBRARY_PATH="$SCRIPT_DIR/lib:$LD_LIBRARY_PATH"
+export QT_PLUGIN_PATH="$SCRIPT_DIR/plugins"
+./temp "$@"
+SCRIPTEOF
+            chmod +x "$package_dir/运行程序.sh"
+          else
+            echo "Warning: Qt path not found, creating basic package"
+            # 即使找不到 Qt，也创建启动脚本
+            cat > "$package_dir/运行程序.sh" << 'SCRIPTEOF'
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+./temp "$@"
+SCRIPTEOF
+            chmod +x "$package_dir/运行程序.sh"
+          fi
+          
+          # 创建 README
+          cat > "$package_dir/README.txt" << EOF
+# temp - Linux 版本
+
+## 使用方法
+
+1. 解压此文件夹到任意位置
+2. 运行 "./运行程序.sh" 或直接运行 "./temp"
+
+## 系统要求
+
+- Linux (Ubuntu 20.04+ / Debian 11+ / Fedora 34+ 等)
+- 无需安装 Qt，所有依赖已包含
+
+## 注意事项
+
+- 如果遇到权限问题，运行: chmod +x 运行程序.sh
+- 如果遇到库加载问题，请确保所有文件都在同一目录下
+- 某些发行版可能需要安装额外的系统库（如 libxcb, libxkbcommon 等）
+EOF
+          
+          echo "Package created in: $package_dir/"
+        else
+          echo "Error: Executable not found"
+          exit 1
+        fi
+
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: temp-${{ matrix.os }}-${{ github.run_number }}
         path: |
-          build/bin/**
-          build/**/*.exe
-          build/**/*.app
+          package/**
         if-no-files-found: warn
+        retention-days: 30
