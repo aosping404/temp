@@ -145,11 +145,7 @@ jobs:
             printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n  <key>CFBundleExecutable</key>\n  <string>temp</string>\n  <key>CFBundleIdentifier</key>\n  <string>com.example.temp</string>\n  <key>CFBundleName</key>\n  <string>temp</string>\n  <key>CFBundlePackageType</key>\n  <string>APPL</string>\n  <key>CFBundleVersion</key>\n  <string>1.0</string>\n</dict>\n</plist>\n' > "$app_path/Contents/Info.plist"
             macdeployqt "$app_path" -always-overwrite
           fi
-          cat > "package/运行程序.sh" << 'EOF'
-#!/bin/bash
-cd "$(dirname "$0")"
-open "temp.app"
-EOF
+          printf '#!/bin/bash\ncd "$(dirname "$0")"\nopen "temp.app"\n' > "package/运行程序.sh"
           chmod +x "package/运行程序.sh"
           
           echo "Package created in: package/"
@@ -216,22 +212,10 @@ EOF
             if command -v patchelf &> /dev/null; then
               patchelf --set-rpath '$ORIGIN/lib' "$package_dir/temp" 2>/dev/null || true
             fi
-            cat > "$package_dir/运行程序.sh" << 'SCRIPTEOF'
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
-export LD_LIBRARY_PATH="$SCRIPT_DIR/lib:$LD_LIBRARY_PATH"
-export QT_PLUGIN_PATH="$SCRIPT_DIR/plugins"
-./temp "$@"
-SCRIPTEOF
+            printf '#!/bin/bash\nSCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\ncd "$SCRIPT_DIR"\nexport LD_LIBRARY_PATH="$SCRIPT_DIR/lib:$LD_LIBRARY_PATH"\nexport QT_PLUGIN_PATH="$SCRIPT_DIR/plugins"\n./temp "$@"\n' > "$package_dir/运行程序.sh"
             chmod +x "$package_dir/运行程序.sh"
           else
-            cat > "$package_dir/运行程序.sh" << 'SCRIPTEOF'
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
-./temp "$@"
-SCRIPTEOF
+            printf '#!/bin/bash\nSCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\ncd "$SCRIPT_DIR"\n./temp "$@"\n' > "$package_dir/运行程序.sh"
             chmod +x "$package_dir/运行程序.sh"
           fi
           
