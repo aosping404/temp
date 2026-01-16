@@ -119,33 +119,12 @@ jobs:
           Copy-Item -Path $exeDir\* -Destination $packageDir -Recurse -Force
           
           # 创建启动脚本
-          $runScript = @"
-@echo off
-cd /d "%~dp0"
-start "" "temp.exe"
-"@
-          $runScript | Out-File -FilePath "$packageDir\运行程序.bat" -Encoding utf8
+          $runScriptContent = "@echo off`r`ncd /d `"%~dp0`"`r`nstart `"`" `"temp.exe`""
+          [System.IO.File]::WriteAllText("$packageDir\运行程序.bat", $runScriptContent, [System.Text.Encoding]::UTF8)
           
           # 创建 README
-          $readme = @"
-# temp - Windows 版本
-
-## 使用方法
-
-1. 解压此文件夹到任意位置
-2. 双击"运行程序.bat"或直接运行"temp.exe"
-
-## 系统要求
-
-- Windows 10 或更高版本
-- 无需安装 Qt 或其他依赖，所有文件已包含
-
-## 注意事项
-
-- 首次运行可能需要几秒钟加载
-- 如果遇到问题，请确保所有文件都在同一目录下
-"@
-          $readme | Out-File -FilePath "$packageDir\README.txt" -Encoding utf8
+          $readmeContent = "# temp - Windows 版本`r`n`r`n## 使用方法`r`n`r`n1. 解压此文件夹到任意位置`r`n2. 双击`"运行程序.bat`"或直接运行`"temp.exe`"`r`n`r`n## 系统要求`r`n`r`n- Windows 10 或更高版本`r`n- 无需安装 Qt 或其他依赖，所有文件已包含`r`n`r`n## 注意事项`r`n`r`n- 首次运行可能需要几秒钟加载`r`n- 如果遇到问题，请确保所有文件都在同一目录下"
+          [System.IO.File]::WriteAllText("$packageDir\README.txt", $readmeContent, [System.Text.Encoding]::UTF8)
           
           Write-Host "Package created in: $packageDir"
         } else {
